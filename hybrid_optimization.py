@@ -9,6 +9,30 @@ def calculate_cost(route, distance_matrix):
     cost += distance_matrix[route[-1]][0]  # Từ điểm cuối cùng quay về điểm 0
     return cost
 
+def generate_neighbor(route):
+        # Chọn hai điểm ngẫu nhiên để xác định đoạn con
+        i, j = sorted(random.sample(range(len(route)), 2))
+        # Đảo ngược đoạn giữa i và j
+        neighbor = route[:]
+        neighbor[i:j+1] = reversed(neighbor[i:j+1])
+        return neighbor
+    
+def is_valid_route(route, n, k):
+    # Kiểm tra ràng buộc đón trước trả và sức chứa
+    current_load = 0
+    position = {val: idx for idx, val in enumerate(route)}
+    for i in range(1, n + 1):
+        if position[i] > position[i + n]:  # Đón sau trả
+            return False
+    for point in route:
+        if point <= n:
+            current_load += 1
+        else:
+            current_load -= 1
+        if current_load > k:
+            return False
+    return True
+
 def cbus_greedy(n, k, distance_matrix):
     visited = [False] * (2 * n + 1)  # Trạng thái các điểm đã được ghé thăm
     route = []  # Tuyến đường
@@ -48,58 +72,41 @@ def cbus_greedy(n, k, distance_matrix):
     return route
 
 def tabu_search(n, k, distance_matrix, initial_route, max_iterations, tabu_size):
-    
-    def is_valid_route(route, n):
-        position = {val: idx for idx, val in enumerate(route)}
-        for i in range(1, n + 1):  # Với mỗi hành khách i
-            if position[i] > position[i + n]:  # Điểm đón xuất hiện sau điểm trả
-                return False
-        return True
-
-    def is_within_capacity(route, n, k):
-        current_load = 0
-        for point in route:
-            if point <= n:  # Điểm đón
-                current_load += 1
-            else:  # Điểm trả
-                current_load -= 1
-            if current_load > k:  # Vượt quá sức chứa
-                return False
-        return True
-
-
-    def generate_neighbors(route):
-        neighbors = []
-        for i in range(len(route)):
-            for j in range(i + 1, len(route)):
-                # Tạo bản sao và hoán đổi
-                neighbor = route[:]
-                neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
-                # Chỉ thêm nếu toàn bộ route hợp lệ
-                if is_valid_route(neighbor, n) and is_within_capacity(neighbor, n, k):
-                    neighbors.append(neighbor)
-        return neighbors
 
     # Khởi tạo
     current_route = initial_route
     best_route = initial_route
     best_cost = calculate_cost(initial_route, distance_matrix)
     tabu_list = []
-    
+    no_improvement = 0
+
     for iteration in range(max_iterations):
-        # Tạo lân cận
-        neighbors = generate_neighbors(current_route)
-        neighbors_costs = [(neighbor, calculate_cost(neighbor, distance_matrix)) for neighbor in neighbors]
-        
-        # Chọn giải pháp tốt nhất không thuộc tabu list
+        # Tạo nhiều lân cận hợp lệ
+        neighbors = [
+            neighbor for neighbor in (generate_neighbor(current_route) for _ in range(100))
+            if is_valid_route(neighbor, n, k)
+        ]
+
+        # Nếu không có lân cận hợp lệ, dừng tìm kiếm
+        if not neighbors:
+            break
+
+        # Tính toán chi phí cho từng lân cận
+        neighbor_cost = [
+            (neighbor, calculate_cost(neighbor, distance_matrix)) 
+            for neighbor in neighbors
+        ]
+
+        # Chọn lân cận tốt nhất không thuộc tabu hoặc tốt hơn best_cost
         next_route = None
         next_cost = float('inf')
-        for neighbor, cost in neighbors_costs:
-            if neighbor not in tabu_list and cost < next_cost:
-                next_route = neighbor
-                next_cost = cost
+        for neighbor, cost in neighbor_cost:
+            if neighbor not in tabu_list or cost < best_cost:
+                if cost < next_cost:
+                    next_route = neighbor
+                    next_cost = cost
 
-        # Nếu không tìm thấy giải pháp lân cận hợp lệ, dừng tìm kiếm
+        # Nếu không tìm thấy lân cận hợp lệ, dừng
         if next_route is None:
             break
 
@@ -110,11 +117,18 @@ def tabu_search(n, k, distance_matrix, initial_route, max_iterations, tabu_size)
         if next_cost < best_cost:
             best_route = next_route
             best_cost = next_cost
+            no_improvement = 0  # Reset bộ đếm nếu có cải thiện
+        else:
+            no_improvement += 1  # Tăng bộ đếm nếu không cải thiện
 
         # Thêm giải pháp hiện tại vào tabu list
         tabu_list.append(current_route)
         if len(tabu_list) > tabu_size:
             tabu_list.pop(0)
+
+        # Dừng sớm nếu không có cải thiện trong nhiều vòng lặp
+        if no_improvement >= 2000:
+            break
 
     return best_route, best_cost
 
@@ -126,35 +140,14 @@ def simulated_annealing(n, k, distance_matrix, initial_route, initial_temperatur
         cost += distance_matrix[route[-1]][0]  # Từ điểm cuối cùng quay về điểm 0
         return cost
 
-    def generate_neighbor(route):
-        # Tạo lân cận bằng cách hoán đổi hai điểm
-        i, j = random.sample(range(len(route)), 2)
-        neighbor = route[:]
-        neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
-        return neighbor
-
-    def is_valid_route(route, n, k):
-        # Kiểm tra ràng buộc đón trước trả và sức chứa
-        current_load = 0
-        position = {val: idx for idx, val in enumerate(route)}
-        for i in range(1, n + 1):
-            if position[i] > position[i + n]:  # Đón sau trả
-                return False
-        for point in route:
-            if point <= n:
-                current_load += 1
-            else:
-                current_load -= 1
-            if current_load > k:
-                return False
-        return True
-
     # Khởi tạo
     current_route = initial_route
     current_cost = calculate_cost(initial_route, distance_matrix)
     best_route = current_route
     best_cost = current_cost
     temperature = initial_temperature
+    no_improvement = 0
+    max_no_improvement = 5000 # Số vòng lặp tối đa không có cải thiện
 
     for iteration in range(max_iterations):
         # Tạo lân cận
@@ -180,6 +173,12 @@ def simulated_annealing(n, k, distance_matrix, initial_route, initial_temperatur
         if current_cost < best_cost:
             best_route = current_route
             best_cost = current_cost
+            no_improvement = 0
+        else:
+            no_improvement += 1
+            
+        if no_improvement > max_no_improvement:
+            break
 
         # Giảm nhiệt độ
         temperature *= cooling_rate
@@ -191,25 +190,14 @@ def simulated_annealing(n, k, distance_matrix, initial_route, initial_temperatur
     return best_route, best_cost
 
 def hybrid_greedy_tabu_sa(n, k, distance_matrix, tabu_iterations, tabu_size, sa_temperature, sa_cooling_rate, sa_iterations):
-    # 1. Khởi tạo giải pháp bằng Greedy
-    print("Starting with Greedy...")
     initial_route = cbus_greedy(n, k, distance_matrix)
+    
     initial_cost = calculate_cost(initial_route, distance_matrix)
-    print("Initial Greedy Route:", initial_route)
-    print("Initial Greedy Cost:", initial_cost)
 
-    # 2. Tối ưu hóa bằng Tabu Search
-    print("\nOptimizing with Tabu Search...")
     tabu_route, tabu_cost = tabu_search(n, k, distance_matrix, initial_route, tabu_iterations, tabu_size)
-    print("Route after Tabu Search:", tabu_route)
-    print("Cost after Tabu Search:", tabu_cost)
 
-    # 3. Tối ưu hóa sâu bằng Simulated Annealing
-    print("\nOptimizing with Simulated Annealing...")
     best_route, best_cost = simulated_annealing(n, k, distance_matrix, tabu_route, sa_temperature, sa_cooling_rate, sa_iterations)
-    print("Best Route after Simulated Annealing:", best_route)
-    print("Best Cost after Simulated Annealing:", best_cost)
-
+    
     return best_route, best_cost
 
 # Input
@@ -222,11 +210,11 @@ for _ in range(2 * n + 1):
     distance_matrix.append(row)
     
 # Tham số Hybrid
-tabu_iterations = 200
-tabu_size = 10
-sa_temperature = 1000
-sa_cooling_rate = 0.99
-sa_iterations = 500
+tabu_iterations = 10000
+tabu_size = 100
+sa_temperature = 1000000
+sa_cooling_rate = 0.995
+sa_iterations = 50000
 
 # Chạy Hybrid Optimization
 best_route, best_cost = hybrid_greedy_tabu_sa(
@@ -235,5 +223,5 @@ best_route, best_cost = hybrid_greedy_tabu_sa(
     sa_temperature, sa_cooling_rate, sa_iterations
 )
 
-print("\nFinal Best Route:", best_route)
-print("Final Best Cost:", best_cost)
+print(n)
+print(*best_route)

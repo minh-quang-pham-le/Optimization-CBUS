@@ -192,6 +192,7 @@ def simulated_annealing(n, k, distance_matrix, initial_route, initial_temperatur
 
 def hybrid_greedy_tabu_sa(n, k, distance_matrix, tabu_iterations, tabu_size, sa_temperature, sa_cooling_rate, sa_iterations):
     initial_route = cbus_greedy(n, k, distance_matrix)
+    
     initial_cost = calculate_cost(initial_route, distance_matrix)
 
     tabu_route, tabu_cost = tabu_search(n, k, distance_matrix, initial_route, tabu_iterations, tabu_size)
